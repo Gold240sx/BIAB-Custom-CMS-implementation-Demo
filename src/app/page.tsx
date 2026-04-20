@@ -10,6 +10,17 @@ import { TestimonialsSection } from "@/components/contractor/testimonials-sectio
 import { WorkSection } from "@/components/contractor/work-section";
 import { getHomePageContent } from "@/lib/biab/get-home-content";
 
+/**
+ * Render per-request so the home page always reflects the current copy from
+ * Site Builder. Next's builder cannot reach the host during `next build`
+ * (Vercel build machines have no network to a self-hosted dev server), which
+ * previously caused the page to be prerendered with the `content.md` fallback.
+ *
+ * Switch to `export const revalidate = 60` + an on-demand revalidation webhook
+ * once traffic justifies ISR.
+ */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
 	const content = await getHomePageContent();
 	return {
