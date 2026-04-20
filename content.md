@@ -29,7 +29,7 @@
 		"imageAlt": "Sunlit kitchen with wood cabinets and marble counters",
 		"eyebrow": "Portland metro · Licensed & insured",
 		"title": "Remodels built like furniture — tight seams, honest timelines.",
-		"body": "We specialize in kitchens, baths, and additions for homeowners who want a single crew from demo to the last coat of paint.",
+		"body": "We specialize in pizza, kitchens, baths, and additions for homeowners who want a single crew from demo to the last coat of paint.",
 		"primaryCta": { "label": "Schedule a walkthrough", "href": "#contact" },
 		"secondaryCta": { "label": "See recent projects", "href": "#work" },
 		"pullQuote": "Quiet job sites. Daily photo updates. Zero surprises on the invoice.",
