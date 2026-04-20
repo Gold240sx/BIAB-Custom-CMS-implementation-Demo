@@ -20,14 +20,57 @@ import { loadHomePageContentFromMarkdown } from "./load-home-content-markdown";
  * Uses the SDK's low-level `request()` so this works against `@biab-dev/sdk`
  * 0.1.x as well as the typed `marketingPages.get()` helper added in 0.2.x.
  */
+/**
+ * Normalize the configured base URL:
+ *
+ * 1. Force `https://` for non-local hosts. Production redirects HTTP→HTTPS
+ *    and `fetch` drops the `Authorization: Bearer …` header on cross-scheme
+ *    redirects per the WHATWG fetch spec.
+ * 2. Make sure the URL ends in `/api/package/v1` so site-scoped paths from the
+ *    SDK are appended correctly. Some SDK versions (≤ 0.2.0) silently drop the
+ *    base URL's pathname when the relative path starts with `/`, so we guard
+ *    here regardless of which SDK is installed.
+ *
+ * Localhost (`localhost`, `127.0.0.1`, `*.local`) is left as HTTP.
+ */
+function normalizeBaseUrl(rawBaseUrl: string): string {
+	const trimmed = rawBaseUrl.trim().replace(/\/+$/, "");
+	let normalized = trimmed;
+	try {
+		const url = new URL(trimmed);
+		const isLocal =
+			url.hostname === "localhost" ||
+			url.hostname === "127.0.0.1" ||
+			url.hostname.endsWith(".local");
+		if (url.protocol === "http:" && !isLocal) {
+			console.warn(
+				`[biab] BIAB_PACKAGE_API_BASE_URL was set to http:// (${trimmed}). Auto-upgrading to https:// — production hosts redirect HTTP→HTTPS and that drops the Authorization header. Update the env var to remove this warning.`,
+			);
+			url.protocol = "https:";
+			normalized = url.toString().replace(/\/+$/, "");
+		}
+	} catch {
+		// Fall through and let the SDK surface the parse error in context.
+	}
+
+	if (!/\/api\/package\/v\d+$/.test(normalized)) {
+		console.warn(
+			`[biab] BIAB_PACKAGE_API_BASE_URL did not end with \`/api/package/v1\` (${normalized}). Auto-appending so the site-scoped paths resolve correctly. Update the env var to remove this warning.`,
+		);
+		normalized = `${normalized}/api/package/v1`;
+	}
+
+	return normalized;
+}
+
 export async function getHomePageContent(): Promise<HomePageContent> {
 	const apiKey = process.env.BIAB_API_KEY;
 	const siteId = process.env.BIAB_SITE_ID;
-	const baseUrl =
+	const rawBaseUrl =
 		process.env.BIAB_PACKAGE_API_BASE_URL ??
 		process.env.NEXT_PUBLIC_BIAB_PACKAGE_API_BASE_URL;
 
-	if (!apiKey || !siteId || !baseUrl) {
+	if (!apiKey || !siteId || !rawBaseUrl) {
 		if (process.env.NODE_ENV === "development") {
 			console.warn(
 				"[biab] Missing BIAB_API_KEY / BIAB_SITE_ID / BIAB_PACKAGE_API_BASE_URL — serving copy from content.md.",
@@ -35,6 +78,8 @@ export async function getHomePageContent(): Promise<HomePageContent> {
 		}
 		return loadHomePageContentFromMarkdown();
 	}
+
+	const baseUrl = normalizeBaseUrl(rawBaseUrl);
 
 	try {
 		const client = createBiabDevClient({ apiKey, baseUrl });
