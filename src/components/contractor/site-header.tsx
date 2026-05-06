@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SiteHeaderAuth } from "@/components/contractor/site-header-auth";
 import type { HomePageContent } from "@/lib/biab/home-content.types";
 
 type Props = {
@@ -48,6 +49,7 @@ export function SiteHeader({ brand, header }: Props) {
 					</div>
 				</details>
 				<div className="flex items-center gap-3">
+					<SiteHeaderAuth />
 					<a
 						className="hidden text-sm font-medium text-ink-muted underline-offset-4 hover:text-accent hover:underline sm:inline"
 						href={`tel:${header.phoneTel}`}
