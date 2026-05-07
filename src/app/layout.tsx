@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 
+import { AppConfig } from "@/AppConfig";
+import { DemoChatbot } from "@/components/biab/demo-chatbot";
+
 const fraunces = Fraunces({
 	variable: "--font-fraunces",
 	subsets: ["latin"],
@@ -30,7 +33,10 @@ export default function RootLayout({
 			lang="en"
 			className={`${fraunces.variable} ${dmSans.variable} h-full antialiased`}
 		>
-			<body className="grain min-h-full flex flex-col">{children}</body>
+			<body className="grain min-h-full flex flex-col">
+				{children}
+				{AppConfig.chatbot ? <DemoChatbot /> : null}
+			</body>
 		</html>
 	);
 }
