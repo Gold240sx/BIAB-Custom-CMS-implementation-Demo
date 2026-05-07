@@ -63,6 +63,26 @@ function normalizeBaseUrl(rawBaseUrl: string): string {
 	return normalized;
 }
 
+/**
+ * Resolve the Origin we send to the platform. Must match the API key's
+ * Allowed Host. We prefer an explicit override, then the public site URL,
+ * then the Vercel URL, then localhost (dev).
+ */
+function resolveSiteOrigin(): string | undefined {
+	const explicit = process.env.BIAB_SITE_ORIGIN?.trim();
+	if (explicit) return explicit;
+	const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+	if (site) return site;
+	const vercel = process.env.VERCEL_URL?.trim();
+	if (vercel) return vercel.startsWith("http") ? vercel : `https://${vercel}`;
+	return process.env.NODE_ENV === "development"
+		? "http://localhost:3000"
+		: undefined;
+}
+
+const UUID_RE =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getHomePageContent(): Promise<HomePageContent> {
 	const apiKey = process.env.BIAB_API_KEY;
 	const siteId = process.env.BIAB_SITE_ID;
@@ -79,10 +99,22 @@ export async function getHomePageContent(): Promise<HomePageContent> {
 		return loadHomePageContentFromMarkdown();
 	}
 
+	if (!UUID_RE.test(siteId)) {
+		console.warn(
+			`[biab] BIAB_SITE_ID is not a UUID (${siteId}) — Site Builder reports site ids like dd7b0e6d-bce7-4c45-a537-cd092d1de6b9. Falling back to content.md.`,
+		);
+		return loadHomePageContentFromMarkdown();
+	}
+
 	const baseUrl = normalizeBaseUrl(rawBaseUrl);
+	const siteOrigin = resolveSiteOrigin();
 
 	try {
-		const client = createBiabDevClient({ apiKey, baseUrl });
+		const client = createBiabDevClient({
+			apiKey,
+			baseUrl,
+			...(siteOrigin ? { siteOrigin } : {}),
+		});
 
 		const response = await client.request({
 			path: `sites/${encodeURIComponent(siteId)}/marketing-pages/home`,

@@ -10,10 +10,24 @@ import { createCustomerPortalProxyHandler } from "@biab-dev/sdk/proxy";
  *   - BIAB_API_KEY                 user-bound API key with `customer_portal:self`
  *   - BIAB_CUSTOMER_PORTAL_ORG_ID  this tenant's WorkOS organization id
  */
+function resolveSiteOrigin(): string | undefined {
+	const explicit = process.env.BIAB_SITE_ORIGIN?.trim();
+	if (explicit) return explicit;
+	const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+	if (site) return site;
+	const vercel = process.env.VERCEL_URL?.trim();
+	if (vercel) return vercel.startsWith("http") ? vercel : `https://${vercel}`;
+	return undefined;
+}
+
 const handler = createCustomerPortalProxyHandler({
 	biabBaseUrl: process.env.BIAB_PACKAGE_API_BASE_URL ?? "",
 	apiKey: process.env.BIAB_API_KEY ?? "",
 	workosOrganizationId: process.env.BIAB_CUSTOMER_PORTAL_ORG_ID ?? "",
+	...(() => {
+		const siteOrigin = resolveSiteOrigin();
+		return siteOrigin ? { siteOrigin } : {};
+	})(),
 });
 
 export const GET = handler;
