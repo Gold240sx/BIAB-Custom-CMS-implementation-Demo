@@ -15,10 +15,16 @@ async function missing(): Promise<Response> {
 
 function handlerFor(request: Request) {
 	if (!baseUrl || !apiKey) return null;
+	// IMPORTANT: WorkOS rejects the token exchange ("Invalid code verifier" /
+	// invalid_grant) if the redirect_uri sent on /authorize differs at all from
+	// the one sent on /token. Prefer an env-pinned value so two requests on
+	// different hostnames (canonical vs. preview vs. proxied) can't disagree.
+	const callbackUrl =
+		process.env.BIAB_AUTH_CALLBACK_URL?.trim() || getBiabAuthCallbackUrl(request);
 	return createAuthHandler({
 		baseUrl,
 		apiKey,
-		callbackUrl: getBiabAuthCallbackUrl(request),
+		callbackUrl,
 		defaultReturnTo: "/",
 		signOutReturnTo: "/",
 	});

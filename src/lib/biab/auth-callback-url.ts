@@ -11,16 +11,36 @@ const AUTH_CALLBACK_PATH = "/api/biab-auth/callback";
  */
 export function getBiabAuthCallbackUrl(request?: Request): string {
 	const explicit = process.env.BIAB_AUTH_CALLBACK_URL?.trim();
-	if (explicit) return explicit;
+	if (explicit) return forceHttpsUnlessLocal(explicit);
 	const site =
 		process.env.NEXT_PUBLIC_SITE_URL?.trim() ??
 		process.env.VERCEL_URL?.trim();
 	if (site) {
-		const base = site.startsWith("http") ? site : `https://${site}`;
-		return `${base.replace(/\/$/, "")}${AUTH_CALLBACK_PATH}`;
+		const withProto = site.startsWith("http") ? site : `https://${site}`;
+		const base = forceHttpsUnlessLocal(withProto).replace(/\/$/, "");
+		return `${base}${AUTH_CALLBACK_PATH}`;
 	}
 	if (request) {
-		return new URL(AUTH_CALLBACK_PATH, request.url).href;
+		return forceHttpsUnlessLocal(new URL(AUTH_CALLBACK_PATH, request.url).href);
 	}
 	return `http://localhost:3000${AUTH_CALLBACK_PATH}`;
+}
+
+// WorkOS rejects http:// redirect URIs (except localhost). Coerce to https
+// so a misconfigured env var or a request behind a proxy that drops the
+// X-Forwarded-Proto header doesn't break OAuth in production.
+function forceHttpsUnlessLocal(url: string): string {
+	try {
+		const parsed = new URL(url);
+		const isLocal =
+			parsed.hostname === "localhost" ||
+			parsed.hostname === "127.0.0.1" ||
+			parsed.hostname.endsWith(".local");
+		if (!isLocal && parsed.protocol === "http:") {
+			parsed.protocol = "https:";
+		}
+		return parsed.href;
+	} catch {
+		return url;
+	}
 }
