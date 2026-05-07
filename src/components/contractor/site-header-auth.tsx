@@ -1,6 +1,7 @@
 "use client";
 
 import { SignIn, SignOut, useUser } from "@biab-dev/sdk/react";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 
@@ -32,12 +33,13 @@ function SiteHeaderAuthInner() {
 		const label = email ?? (nameFromParts.length > 0 ? nameFromParts : "Account");
 		return (
 			<span className="flex max-w-[min(100%,14rem)] items-center gap-2 sm:max-w-none">
-				<span
-					className="hidden truncate text-sm text-ink-muted md:inline"
+				<Link
+					className="truncate text-sm text-ink-muted transition hover:text-accent"
+					href="/account"
 					title={email ?? undefined}
 				>
 					{label}
-				</span>
+				</Link>
 				<SignOut className="rounded-full border border-line bg-transparent px-3 py-1.5 text-center text-xs font-semibold text-ink transition hover:border-accent hover:text-accent">
 					Sign out
 				</SignOut>

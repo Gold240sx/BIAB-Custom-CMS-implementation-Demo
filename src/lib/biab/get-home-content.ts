@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import type { HomePageContent } from "./home-content.types";
 import { loadHomePageContentFromMarkdown } from "./load-home-content-markdown";
+import { normalizePackageApiBaseUrl } from "./normalize-package-api-base-url";
+import { resolveSiteOriginForBiab } from "./resolve-site-origin";
 
 /**
  * Fetches the marketing home page payload from the BIAB host's package API and
@@ -20,65 +22,6 @@ import { loadHomePageContentFromMarkdown } from "./load-home-content-markdown";
  * Uses the SDK's low-level `request()` so this works against `@biab-dev/sdk`
  * 0.1.x as well as the typed `marketingPages.get()` helper added in 0.2.x.
  */
-/**
- * Normalize the configured base URL:
- *
- * 1. Force `https://` for non-local hosts. Production redirects HTTP→HTTPS
- *    and `fetch` drops the `Authorization: Bearer …` header on cross-scheme
- *    redirects per the WHATWG fetch spec.
- * 2. Make sure the URL ends in `/api/package/v1` so site-scoped paths from the
- *    SDK are appended correctly. Some SDK versions (≤ 0.2.0) silently drop the
- *    base URL's pathname when the relative path starts with `/`, so we guard
- *    here regardless of which SDK is installed.
- *
- * Localhost (`localhost`, `127.0.0.1`, `*.local`) is left as HTTP.
- */
-function normalizeBaseUrl(rawBaseUrl: string): string {
-	const trimmed = rawBaseUrl.trim().replace(/\/+$/, "");
-	let normalized = trimmed;
-	try {
-		const url = new URL(trimmed);
-		const isLocal =
-			url.hostname === "localhost" ||
-			url.hostname === "127.0.0.1" ||
-			url.hostname.endsWith(".local");
-		if (url.protocol === "http:" && !isLocal) {
-			console.warn(
-				`[biab] BIAB_PACKAGE_API_BASE_URL was set to http:// (${trimmed}). Auto-upgrading to https:// — production hosts redirect HTTP→HTTPS and that drops the Authorization header. Update the env var to remove this warning.`,
-			);
-			url.protocol = "https:";
-			normalized = url.toString().replace(/\/+$/, "");
-		}
-	} catch {
-		// Fall through and let the SDK surface the parse error in context.
-	}
-
-	if (!/\/api\/package\/v\d+$/.test(normalized)) {
-		console.warn(
-			`[biab] BIAB_PACKAGE_API_BASE_URL did not end with \`/api/package/v1\` (${normalized}). Auto-appending so the site-scoped paths resolve correctly. Update the env var to remove this warning.`,
-		);
-		normalized = `${normalized}/api/package/v1`;
-	}
-
-	return normalized;
-}
-
-/**
- * Resolve the Origin we send to the platform. Must match the API key's
- * Allowed Host. We prefer an explicit override, then the public site URL,
- * then the Vercel URL, then localhost (dev).
- */
-function resolveSiteOrigin(): string | undefined {
-	const explicit = process.env.BIAB_SITE_ORIGIN?.trim();
-	if (explicit) return explicit;
-	const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-	if (site) return site;
-	const vercel = process.env.VERCEL_URL?.trim();
-	if (vercel) return vercel.startsWith("http") ? vercel : `https://${vercel}`;
-	return process.env.NODE_ENV === "development"
-		? "http://localhost:3000"
-		: undefined;
-}
 
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -106,8 +49,8 @@ export async function getHomePageContent(): Promise<HomePageContent> {
 		return loadHomePageContentFromMarkdown();
 	}
 
-	const baseUrl = normalizeBaseUrl(rawBaseUrl);
-	const siteOrigin = resolveSiteOrigin();
+	const baseUrl = normalizePackageApiBaseUrl(rawBaseUrl);
+	const siteOrigin = resolveSiteOriginForBiab();
 
 	try {
 		const client = createBiabDevClient({

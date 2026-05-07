@@ -1,40 +1,67 @@
 import { createBiabDevClient } from "@biab-dev/sdk";
+import Link from "next/link";
+
+import { normalizePackageApiBaseUrl } from "@/lib/biab/normalize-package-api-base-url";
+import { resolveSiteOriginForBiab } from "@/lib/biab/resolve-site-origin";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Customer-portal demo. Shows how a tenant site (e.g. dominoes.example) calls
- * the BIAB customer-portal SDK pinned to one organization.
+ * Customer-portal demo. Calls the BIAB customer-portal API with the site API key.
  *
  * Env:
  *  - `BIAB_PACKAGE_API_BASE_URL`  e.g. https://biab.app/api/package/v1
- *  - `BIAB_API_KEY`               user-bound API key with `customer_portal:self` scope
- *  - `BIAB_CUSTOMER_PORTAL_ORG_ID`  the WorkOS organization id this site belongs to
- *
- * Note: the SDK pins every request to the org id you pass — the platform
- * rejects access to any other org so this page can never accidentally surface
- * data from a different tenant.
+ *  - `BIAB_API_KEY`               key with `customer_portal:self` (and usual tenant scopes)
+ *  - `BIAB_CUSTOMER_PORTAL_ORG_ID`  optional — pins `X-BIAB-Customer-Portal-Org`; omit when
+ *    the key’s default org is enough (common for a single-tenant site).
  */
 export default async function CustomerDemoPage() {
-	const baseUrl = process.env.BIAB_PACKAGE_API_BASE_URL;
+	const rawBase =
+		process.env.BIAB_PACKAGE_API_BASE_URL ??
+		process.env.NEXT_PUBLIC_BIAB_PACKAGE_API_BASE_URL;
 	const apiKey = process.env.BIAB_API_KEY;
-	const orgId = process.env.BIAB_CUSTOMER_PORTAL_ORG_ID;
+	const orgPin = process.env.BIAB_CUSTOMER_PORTAL_ORG_ID?.trim() || undefined;
 
-	if (!baseUrl || !apiKey || !orgId) {
+	if (!rawBase || !apiKey) {
 		return (
-			<main className="mx-auto max-w-2xl px-6 py-12">
-				<h1 className="text-2xl font-semibold">Customer portal demo</h1>
-				<p className="mt-2 text-sm text-zinc-600">
-					Set <code>BIAB_PACKAGE_API_BASE_URL</code>,{" "}
-					<code>BIAB_API_KEY</code>, and{" "}
-					<code>BIAB_CUSTOMER_PORTAL_ORG_ID</code> to enable this page.
-				</p>
-			</main>
+			<div className="grain flex min-h-full flex-col">
+				<header className="border-b border-line/80 bg-paper/90 backdrop-blur-md">
+					<div className="mx-auto flex max-w-6xl items-center px-5 py-4 md:px-8">
+						<Link
+							className="font-display text-sm font-semibold text-ink transition hover:text-accent"
+							href="/"
+						>
+							← Home
+						</Link>
+					</div>
+				</header>
+				<main className="mx-auto max-w-2xl flex-1 px-6 py-12">
+					<h1 className="font-display text-2xl font-semibold text-ink">
+						Customer portal demo
+					</h1>
+					<p className="mt-2 text-sm text-ink-muted">
+						Set <code className="text-ink">BIAB_PACKAGE_API_BASE_URL</code> and{" "}
+						<code className="text-ink">BIAB_API_KEY</code> to enable this page.
+						<span className="mt-2 block">
+							Optional: <code className="text-ink">BIAB_CUSTOMER_PORTAL_ORG_ID</code>{" "}
+							to pin a WorkOS org when your key can reach more than one org.
+						</span>
+					</p>
+				</main>
+			</div>
 		);
 	}
 
-	const client = createBiabDevClient({ baseUrl, apiKey });
-	const portal = client.customerPortal(orgId);
+	const baseUrl = normalizePackageApiBaseUrl(rawBase);
+	const siteOrigin = resolveSiteOriginForBiab();
+	const client = createBiabDevClient({
+		baseUrl,
+		apiKey,
+		...(siteOrigin ? { siteOrigin } : {}),
+	});
+	const portal = orgPin
+		? client.customerPortal(orgPin)
+		: client.customerPortal();
 
 	let context: Awaited<ReturnType<typeof portal.context>> | null = null;
 	let profile: Awaited<ReturnType<typeof portal.getProfile>> = null;
@@ -48,44 +75,75 @@ export default async function CustomerDemoPage() {
 	}
 
 	return (
-		<main className="mx-auto max-w-2xl px-6 py-12">
-			<h1 className="text-2xl font-semibold">Customer portal demo</h1>
-			<p className="mt-2 text-sm text-zinc-600">
-				Pinned to org <code>{orgId}</code>. The SDK sends{" "}
-				<code>X-BIAB-Customer-Portal-Org</code> on every request, and the BIAB
-				platform rejects access to any other organization.
-			</p>
+		<div className="grain flex min-h-full flex-col">
+			<header className="border-b border-line/80 bg-paper/90 backdrop-blur-md">
+				<div className="mx-auto flex max-w-6xl items-center px-5 py-4 md:px-8">
+					<Link
+						className="font-display text-sm font-semibold text-ink transition hover:text-accent"
+						href="/"
+					>
+						← Home
+					</Link>
+				</div>
+			</header>
+			<main className="mx-auto max-w-2xl flex-1 px-6 py-12">
+				<h1 className="font-display text-2xl font-semibold text-ink">
+					Customer portal demo
+				</h1>
+				<p className="mt-2 text-sm text-ink-muted">
+					{orgPin ? (
+						<>
+							Pinned to org <code className="text-ink">{orgPin}</code>. The SDK
+							sends <code className="text-ink">X-BIAB-Customer-Portal-Org</code> on
+							each request.
+						</>
+					) : (
+						<>
+							Using the org implied by your API key (no{" "}
+							<code className="text-ink">BIAB_CUSTOMER_PORTAL_ORG_ID</code>). Add
+							that variable if you need to lock the page to a specific WorkOS org.
+						</>
+					)}
+				</p>
 
-			{error ? (
-				<pre className="mt-6 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
-					{error}
-				</pre>
-			) : null}
+				{error ? (
+					<pre className="mt-6 overflow-auto rounded-md border border-rose-200/80 bg-rose-50/90 p-3 text-sm text-rose-900">
+						{error}
+					</pre>
+				) : null}
 
-			{context ? (
-				<section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
-					<h2 className="font-semibold">Context</h2>
-					<dl className="mt-2 grid grid-cols-[6rem_1fr] gap-y-1 text-sm">
-						<dt className="text-zinc-500">Org</dt>
-						<dd>{context.organization.name ?? "(unnamed)"}</dd>
-						<dt className="text-zinc-500">User</dt>
-						<dd>{context.user.email ?? context.user.id}</dd>
-						<dt className="text-zinc-500">Customer</dt>
-						<dd>{context.isCustomer ? "Yes" : "No (staff preview)"}</dd>
-					</dl>
+				{context ? (
+					<section className="mt-6 rounded-2xl border border-line bg-paper-deep/40 p-4 shadow-sm">
+						<h2 className="font-display font-semibold text-ink">Context</h2>
+						<dl className="mt-2 grid grid-cols-[6rem_1fr] gap-y-1 text-sm">
+							<dt className="text-ink-muted">Org</dt>
+							<dd className="text-ink">
+								{context.organization.name ?? "(unnamed)"}
+							</dd>
+							<dt className="text-ink-muted">User</dt>
+							<dd className="text-ink">
+								{context.user.email ?? context.user.id}
+							</dd>
+							<dt className="text-ink-muted">Customer</dt>
+							<dd className="text-ink">
+								{context.isCustomer ? "Yes" : "No (staff preview)"}
+							</dd>
+						</dl>
+					</section>
+				) : null}
+
+				<section className="mt-4 rounded-2xl border border-line bg-paper-deep/40 p-4 shadow-sm">
+					<h2 className="font-display font-semibold text-ink">Profile</h2>
+					<pre className="mt-2 overflow-auto rounded-md bg-paper p-3 text-xs text-ink">
+						{JSON.stringify(profile, null, 2)}
+					</pre>
 				</section>
-			) : null}
 
-			<section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
-				<h2 className="font-semibold">Profile</h2>
-				<pre className="mt-2 overflow-auto rounded-md bg-zinc-50 p-3 text-xs">
-					{JSON.stringify(profile, null, 2)}
-				</pre>
-			</section>
-
-			<p className="mt-6 text-xs text-zinc-500">
-				See <code>/customer-portal</code> in the docs for the full surface.
-			</p>
-		</main>
+				<p className="mt-6 text-xs text-ink-muted">
+					See <code className="text-ink/80">/customer-portal</code> in the BIAB docs
+					for the full surface.
+				</p>
+			</main>
+		</div>
 	);
 }
